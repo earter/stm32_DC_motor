@@ -1,28 +1,9 @@
 #include "stm32f1xx.h"
-//#include "uart.h"
+#include "uart.h"
 #include <string.h>
 
-UART_HandleTypeDef uart;
 TIM_HandleTypeDef tim4;
 uint8_t value;
-
-void uart_send_string(char* s)
-{
- HAL_UART_Transmit(&uart, (uint8_t*)s, strlen(s), 1000);
-}
-
-void send_char(char c)
-{
- HAL_UART_Transmit(&uart, (uint8_t*)&c, 1, 1000);
-}
-
-int __io_putchar(int ch)
-{
- if (ch == '\n')
- send_char('\r');
- send_char(ch);
- return ch;
-}
 
 
 //float pid(float w_ref, float w_meas){
@@ -41,25 +22,21 @@ int main(void)
 	__HAL_RCC_TIM4_CLK_ENABLE(); // timer4 on
 	__HAL_RCC_USART2_CLK_ENABLE();
 
-	// konfiguracja gpiob
 	GPIO_InitTypeDef gpio;
+
 	gpio.Mode = GPIO_MODE_AF_PP; //ustawienie trybu wyjscia na alterntive fcn
-	gpio.Pin = GPIO_PIN_6|GPIO_PIN_7; // timer channel 1 and 2
+	gpio.Pin = GPIO_PIN_6|GPIO_PIN_7; // timer channel 1 and 2 -- wyjscia na H-B
 	gpio.Pull = GPIO_NOPULL;
 	gpio.Speed = GPIO_SPEED_FREQ_HIGH;
 	HAL_GPIO_Init(GPIOB, &gpio);
 
 	gpio.Mode = GPIO_MODE_OUTPUT_PP;
 	gpio.Pull = GPIO_NOPULL;
-	gpio.Pin = GPIO_PIN_5|GPIO_PIN_4|GPIO_PIN_0|GPIO_PIN_1;
+	gpio.Pin = GPIO_PIN_5|GPIO_PIN_4|GPIO_PIN_0|GPIO_PIN_1; // LED
 	gpio.Speed = GPIO_SPEED_FREQ_LOW;
 	HAL_GPIO_Init(GPIOA, &gpio);
 
-	gpio.Mode = GPIO_MODE_IT_RISING;
-	gpio.Pull = GPIO_PULLUP;
-	gpio.Pin = GPIO_PIN_10|GPIO_PIN_13|GPIO_PIN_11|GPIO_PIN_12;
-	HAL_GPIO_Init(GPIOC, &gpio);
-
+	//uart
 	 gpio.Mode = GPIO_MODE_AF_PP;
 	 gpio.Pin = GPIO_PIN_2;
 	 gpio.Pull = GPIO_NOPULL;
@@ -94,7 +71,7 @@ int main(void)
 	HAL_TIM_PWM_ConfigChannel(&tim4, &oc, TIM_CHANNEL_1);
 	HAL_TIM_PWM_ConfigChannel(&tim4, &oc, TIM_CHANNEL_2);
 
-	// uart configuration
+//	// uart configuration
 	 uart.Instance = USART2;
 	 uart.Init.BaudRate = 115200;
 	 uart.Init.WordLength = UART_WORDLENGTH_8B;
@@ -105,9 +82,7 @@ int main(void)
 	 uart.Init.Mode = UART_MODE_TX_RX;
 	 HAL_UART_Init(&uart);
 
-	// uruchomienie timera - w przerwaniu
-//	HAL_TIM_PWM_Start(&tim4, TIM_CHANNEL_1);
-//	HAL_TIM_PWM_Start(&tim4, TIM_CHANNEL_2);
+
 	while (1) {
 		 if (__HAL_UART_GET_FLAG(&uart, UART_FLAG_RXNE) == SET)
 		 {
@@ -115,31 +90,31 @@ int main(void)
 		 printf("Odebrano: %c\r\n", value);
 		 switch(value){
 		 case 'a': // backward
-		 		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_4);
-		 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
-		 		HAL_TIM_PWM_Stop(&tim4, TIM_CHANNEL_2);
+			    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
+			    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+		 		HAL_TIM_PWM_Stop(&tim4, TIM_CHANNEL_2); // to be optimised
 		 		HAL_TIM_PWM_Start(&tim4, TIM_CHANNEL_1);
 		 		uart_send_string("backward\r\n");
 		 		break;
 		 case 'd':  //forward
-		 		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-		 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+			    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+		 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
 		 		HAL_TIM_PWM_Stop(&tim4, TIM_CHANNEL_1);
 		 		HAL_TIM_PWM_Start(&tim4, TIM_CHANNEL_2);
 		 		uart_send_string("forward\r\n");
 		 		break;
-		 case 'w':  //fast
-		 	    HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_0);
+		 case 'w':  //fastss
+		 	   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET);
 		 	    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
-		 	    __HAL_TIM_SET_COMPARE(&tim4, TIM_CHANNEL_1, 80);
-		 	    __HAL_TIM_SET_COMPARE(&tim4, TIM_CHANNEL_2, 80);
+		 	    __HAL_TIM_SET_COMPARE(&tim4, TIM_CHANNEL_1, 75);
+		 	    __HAL_TIM_SET_COMPARE(&tim4, TIM_CHANNEL_2, 75);
 		 	    uart_send_string("fast\r\n");
 		 	   break;
 		 case 's': //slow
-		 	    HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
+		 	    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
 		 	    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET);
-		 	    __HAL_TIM_SET_COMPARE(&tim4, TIM_CHANNEL_1, 20);
-		 	    __HAL_TIM_SET_COMPARE(&tim4, TIM_CHANNEL_2, 20);
+		 	    __HAL_TIM_SET_COMPARE(&tim4, TIM_CHANNEL_1, 5);
+		 	    __HAL_TIM_SET_COMPARE(&tim4, TIM_CHANNEL_2, 5);
 		 	    uart_send_string("slow\r\n");
 		 	   break;
 		 	}
